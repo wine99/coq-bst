@@ -1,5 +1,5 @@
 Set Warnings "-deprecated-hint-without-locality,-implicit-core-hint-db".
-From Coq Require Import Init.Nat.
+From Coq Require Import Arith.PeanoNat.
 From Coq Require Import Setoids.Setoid.
 From Coq Require Import Lia.
 From BST Require Import helpers.
@@ -97,4 +97,56 @@ Proof with auto using insert_all.
     destruct (eqbP x n)...
     destruct (ltbP x n)...
     assert (Hlt: n < x) by lia...
+Qed.
+
+Lemma insert_diff_root : forall t x y,
+  sorted t ->
+  y <> x ->
+  elem_of y (insert x t) = elem_of y t.
+Proof.
+  intros.
+  induction H.
+  - simpl. apply Nat.eqb_neq in H0. rewrite H0.
+    destruct (ltbP y x); reflexivity.
+  - simpl. destruct (eqbP x n).
+    + subst. apply Nat.eqb_neq in H0. rewrite H0.
+      destruct (y <? n) eqn:Hyn;
+      solve [simpl; rewrite H0; rewrite Hyn; reflexivity].
+    + destruct (x <? n);
+      solve [simpl; destruct (eqbP y n); try reflexivity;
+        destruct (y <? n); auto].
+Qed.
+
+Lemma insert_correct : forall t x y,
+  sorted t ->
+  elem_of y (insert x t) = orb (elem_of y t) (y =? x).
+Proof with auto.
+  intros. induction H.
+  - simpl. destruct (eqbP y x)... destruct (ltbP y x)...
+  - unfold insert. destruct (eqbP x n).
+    + (* inserted [x] = root [n] *)
+      simpl. destruct (eqbP y n); subst...
+      * (* searching [y] <> root [n] *)
+        destruct (ltbP y n);
+        try rewrite <- IHsorted1; try rewrite <- IHsorted2;
+        rewrite insert_diff_root...
+    + destruct (ltbP x n); fold insert.
+      * (* inserted [x] < root [n] *)
+        simpl. destruct (eqbP y n); subst...
+        destruct (ltbP y n).
+        -- (* searching [y] < root [n] *)
+           apply IHsorted1.
+        -- (* searching [y] > root [n] *)
+           assert (Hlt: x <> y) by lia.
+           rewrite <- IHsorted2.
+           rewrite insert_diff_root...
+      * (* inserted [x] > root [n] *)
+        simpl. destruct (eqbP y n); subst...
+        destruct (ltbP y n).
+        -- (* searching [y] < root [n] *)
+           assert (Hlt: x <> y) by lia.
+           rewrite <- IHsorted1.
+           rewrite insert_diff_root...
+        -- (* searching [y] > root [n] *)
+           apply IHsorted2.
 Qed.
