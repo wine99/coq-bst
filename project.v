@@ -1,29 +1,37 @@
-From Coq Require Import Init.Nat.
+Set Warnings "-deprecated-hint-without-locality,-implicit-core-hint-db".
+From Coq Require Import Arith.PeanoNat.
+From Coq Require Import Setoids.Setoid.
+From Coq Require Import Lia.
+From BST Require Import helpers.
 
-Inductive Tree {T : Type} :=
-  | node (t : T) (l r : Tree)
-  | null : Tree.
+Inductive tree :=
+  | leaf : tree
+  | node : nat -> tree -> tree -> tree.
 
-Example Sorted := node 10 (node 5 (node 2 null null) (node 7 null null)) (node 16 (node 12 null null) (node 17 null null)).
-Example Unsorted := node 1 (node 2 (node 3 null null) (node 4 null null)) (node 5 null null).
+Example Sorted := node 10 (node 5 (node 2 leaf leaf) (node 7 leaf leaf)) (node 16 (node 12 leaf leaf) (node 17 leaf leaf)).
+Example Unsorted := node 1 (node 2 (node 3 leaf leaf) (node 4 leaf leaf)) (node 5 leaf leaf).
 
-Inductive sorted : @Tree nat -> Prop :=
-  | leaf_sorted : sorted null
-  | node_empty (t : nat) : sorted (node t null null)
-  | node_left (t l : nat) (ll lr : Tree) :
-      (l <? t) = true ->
-      sorted (node l ll lr) ->
-      sorted (node t (node l ll lr) null)
-  | node_right (t r : nat) (rl rr : Tree) :
-      (t <? r) = true ->
-      sorted (node r rl rr) ->
-      sorted (node t null (node r rl rr))
-  | node_full (t l r : nat) (ll lr rl rr : Tree) :
-      (l <? t) = true ->
-      (t <? r) = true ->
-      sorted (node l ll lr) ->
-      sorted (node r rl rr) ->
-      sorted (node t (node l ll lr) (node r rl rr)).
+Inductive all : (nat -> Prop) -> tree -> Prop :=
+  | all_leaf : forall p,
+      all p leaf
+  | all_node : forall p n t1 t2,
+      all p t1 ->
+      all p t2 ->
+      p n ->
+      all p (node n t1 t2).
+
+Hint Constructors all.
+
+Inductive sorted : tree -> Prop :=
+  | sorted_leaf : sorted leaf
+  | sorted_node : forall n t1 t2,
+      sorted t1 ->
+      sorted t2 ->
+      all (fun x => x < n) t1 ->
+      all (fun x => n < x) t2 ->
+      sorted (node n t1 t2).
+
+Hint Constructors sorted.
 
 Example SortedSorted : sorted Sorted.
 Proof.
@@ -32,13 +40,15 @@ Qed.
 
 Example UnsortedUnsorted : sorted Unsorted -> False.
 Proof.
-  unfold Unsorted. intro. inversion H. inversion H4.
+  unfold Unsorted; intro; (solve_by_inverts 4).
 Qed.
 
-Fixpoint elem_of (x : nat) (t : @Tree nat) : bool := match t with
-  | node t l r => if x =? t then true else
-    if x <? t then elem_of x l else elem_of x r
-  | null => false
+Fixpoint elem_of (x : nat) (t : tree) : bool := match t with
+  | node n t1 t2 =>
+      if x =? n then true else
+      if x <? n then elem_of x t1 else
+      elem_of x t2
+  | leaf => false
 end.
 
 Example SortedDoesntContain4 : elem_of 4 Sorted = false.
@@ -53,74 +63,90 @@ Proof. reflexivity. Qed.
 Example SortedContains10 : elem_of 10 Sorted = true.
 Proof. reflexivity. Qed.
 
-Fixpoint insert (x : nat) (t : Tree) : Tree := match t with
-  | node t l r => if x =? t then node t l r else
-    if x <? t then node t (insert x l) r else node t l (insert x r)
-  | null => node x null null
+Fixpoint insert (x : nat) (t : tree) : tree := match t with
+  | leaf => node x leaf leaf
+  | node n t1 t2 =>
+      if x =? n then t else
+      if x <? n then node n (insert x t1) t2 else
+      node n t1 (insert x t2)
 end.
 
-Example InsertIntoEmpty : insert 5 null = node 5 null null.
+Example InsertIntoEmpty : insert 5 leaf = node 5 leaf leaf.
 Proof. reflexivity. Qed.
 
-Example InsertIntoExisting : insert 7 (insert 5 null) = node 5 null (node 7 null null).
+Example InsertIntoExisting : insert 7 (insert 5 leaf) = node 5 leaf (node 7 leaf leaf).
 Proof. reflexivity. Qed.
 
-Lemma insert_always_produce_node : forall t x,
-  exists t' l r, insert x t = node t' l r.
-Proof.
-  induction t.
-  - intros x. unfold insert. destruct (x =? t1). {
-      exists t1. exists t2. exists t3. reflexivity.
-    }
-    destruct (x <? t1). {
-      destruct (IHt1 x). exists t1. destruct H. destruct H.
-      exists (node x0 x1 x2). exists t3. rewrite <- H. reflexivity.
-    }
-    exists t1. exists t2. destruct (IHt2 x). destruct H. destruct H.
-    exists (node x0 x1 x2). rewrite <- H. reflexivity.
-  - intros x. exists x. exists null. exists null. reflexivity.
+Lemma insert_all : forall p t x,
+  all p t ->
+  p x ->
+  all p (insert x t).
+Proof with auto.
+  intros. induction H.
+  - constructor...
+  - unfold insert. destruct (eqbP x n)...
+    destruct (ltbP x n)...
 Qed.
-
-Lemma insert_diff_root_stays :
-  forall (x x': nat) (t1 t2 : Tree),
-  x' <> x ->
-  exists (t1' t2' : Tree), insert x' (node x t1 t2) = node x t1' t2'.
-Proof.
-  intros.
-Admitted.
-
-Lemma subst_node : forall (x' : nat) (t : Tree),
-  insert x' t = node x' null null \/
-  (exists (x : nat) (t1 t2 t1': Tree), t = node x t1 t2 -> x' <? x = true -> insert x' t = node x t1' t2) \/
-  (exists (x : nat) (t1 t2 : Tree), t = node x t1 t2 -> x = x' -> insert x' t = t) \/
-  (exists (x : nat) (t1 t2 t2' : Tree), t = node x t1 t2 -> x <? x' = true -> insert x' t = node x t1 t2').
-Proof.
-Admitted.
 
 Lemma insert_sorted : forall t x,
   sorted t -> sorted (insert x t).
-Proof.
-  induction t.
-  - intros. cbn. destruct (x =? t1) eqn:Heq. {
-    apply H.
-  }
-  destruct t1.
-    + destruct t2. {
-        inversion H. inversion H2. inversion H4.
-      }
-      destruct t3. 2: {
-        constructor.
-        - destruct x.
-          + discriminate Heq.
-          + reflexivity.
-        - constructor.
-      }
-      inversion H. apply (IHt2 x) in H5. subst.
+Proof with auto using insert_all.
+  intros. induction H.
+  - constructor...
+  - unfold insert.
+    destruct (eqbP x n)...
+    destruct (ltbP x n)...
+    assert (Hlt: n < x) by lia...
+Qed.
 
-        apply (IHt2 x) in H5.
-      assert (Hsome_node: exists (n : nat) (t1' t2': Tree),
-              insert x (node t t3_1 t3_2) = node n t1' t2'). {
-        apply insert_always_produce_node.
-      }
-      destruct Hsome_node as [x' [t1' [t2']]].
-      rewrite H6 in *. constructor. subst.
+Lemma insert_diff_root : forall t x y,
+  sorted t ->
+  y <> x ->
+  elem_of y (insert x t) = elem_of y t.
+Proof.
+  intros.
+  induction H.
+  - simpl. apply Nat.eqb_neq in H0. rewrite H0.
+    destruct (ltbP y x); reflexivity.
+  - simpl. destruct (eqbP x n).
+    + subst. apply Nat.eqb_neq in H0. rewrite H0.
+      destruct (y <? n) eqn:Hyn;
+      solve [simpl; rewrite H0; rewrite Hyn; reflexivity].
+    + destruct (x <? n);
+      solve [simpl; destruct (eqbP y n); try reflexivity;
+        destruct (y <? n); auto].
+Qed.
+
+Lemma insert_correct : forall t x y,
+  sorted t ->
+  elem_of y (insert x t) = orb (elem_of y t) (y =? x).
+Proof with auto.
+  intros. induction H.
+  - simpl. destruct (eqbP y x)... destruct (ltbP y x)...
+  - unfold insert. destruct (eqbP x n).
+    + (* inserted [x] = root [n] *)
+      simpl. destruct (eqbP y n); subst...
+      * (* searching [y] <> root [n] *)
+        destruct (ltbP y n);
+        try rewrite <- IHsorted1; try rewrite <- IHsorted2;
+        rewrite insert_diff_root...
+    + destruct (ltbP x n); fold insert.
+      * (* inserted [x] < root [n] *)
+        simpl. destruct (eqbP y n); subst...
+        destruct (ltbP y n).
+        -- (* searching [y] < root [n] *)
+           apply IHsorted1.
+        -- (* searching [y] > root [n] *)
+           assert (Hlt: x <> y) by lia.
+           rewrite <- IHsorted2.
+           rewrite insert_diff_root...
+      * (* inserted [x] > root [n] *)
+        simpl. destruct (eqbP y n); subst...
+        destruct (ltbP y n).
+        -- (* searching [y] < root [n] *)
+           assert (Hlt: x <> y) by lia.
+           rewrite <- IHsorted1.
+           rewrite insert_diff_root...
+        -- (* searching [y] > root [n] *)
+           apply IHsorted2.
+Qed.
