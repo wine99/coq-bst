@@ -137,14 +137,14 @@ Proof with auto.
         -- (* searching [y] < root [n] *)
            apply IHsorted1.
         -- (* searching [y] > root [n] *)
-           assert (Hlt: x <> y) by lia.
+           assert (Hneq: x <> y) by lia.
            rewrite <- IHsorted2.
            rewrite insert_diff_root...
       * (* inserted [x] > root [n] *)
         simpl. destruct (eqbP y n); subst...
         destruct (ltbP y n).
         -- (* searching [y] < root [n] *)
-           assert (Hlt: x <> y) by lia.
+           assert (Hneq: x <> y) by lia.
            rewrite <- IHsorted1.
            rewrite insert_diff_root...
         -- (* searching [y] > root [n] *)
