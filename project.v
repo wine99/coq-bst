@@ -51,6 +51,21 @@ Fixpoint elem_of (x : nat) (t : tree) : bool := match t with
   | leaf => false
 end.
 
+Inductive elem_ofP : nat -> tree -> Prop :=
+  | elem_ofP_root : forall x lhs rhs, elem_ofP x (node x lhs rhs)
+  | elem_ofP_left : forall x x' lhs rhs,
+      elem_ofP x lhs ->
+      x < x' ->
+      elem_ofP x (node x' lhs rhs)
+  | elem_ofP_right : forall x x' lhs rhs,
+      elem_ofP x rhs ->
+      x > x' ->
+      elem_ofP x (node x' lhs rhs).
+
+Lemma elem_of_prop : forall x t, elem_of x t = true <-> elem_ofP x t.
+Proof.
+Admitted.
+
 Example SortedDoesntContain4 : elem_of 4 Sorted = false.
 Proof. reflexivity. Qed.
 
@@ -149,4 +164,45 @@ Proof with auto.
            rewrite insert_diff_root...
         -- (* searching [y] > root [n] *)
            apply IHsorted2.
+Qed.
+
+Fixpoint bst_to_list (bst : tree) : list nat :=
+  match bst with
+    | leaf => nil
+    | node x lhs rhs => (bst_to_list lhs) ++ x :: nil ++ (bst_to_list rhs)
+  end.
+
+From Coq Require Import Lists.List.
+
+Definition list_to_bst (l : list nat) : tree := fold_left (fun acc e => insert e acc) l leaf.
+
+Lemma toBSTStillContains : forall (e : nat) (l : list nat),
+  (In e l) <-> elem_ofP e (list_to_bst l).
+Proof.
+Admitted.
+
+Lemma toListStillContains : forall (e : nat) (t : tree),
+  (elem_ofP e t) <-> In e (bst_to_list t).
+Proof.
+Admitted.
+
+Lemma conversionThroughListPreservesElements : forall (e : nat) (t : tree),
+  sorted t -> (elem_ofP e t <-> elem_ofP e (list_to_bst (bst_to_list t))).
+Proof.
+  split.
+  - intros. inversion H0.
+    + assert (H_contains_root: elem_ofP x (node x lhs rhs)) by constructor.
+      apply toListStillContains in H_contains_root. apply toBSTStillContains in H_contains_root.
+      subst. assumption.
+    + assert (H_contains_left: elem_ofP e (node x' lhs rhs)). {
+        constructor; assumption.
+      }
+      apply toListStillContains in H_contains_left. apply toBSTStillContains in H_contains_left.
+      assumption.
+    + assert (H_contains_right: elem_ofP e (node x' lhs rhs)). {
+        constructor; assumption.
+      }
+      apply toListStillContains in H_contains_right. apply toBSTStillContains in H_contains_right.
+      assumption.
+  - intros. apply toListStillContains. apply toBSTStillContains. assumption.
 Qed.
