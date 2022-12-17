@@ -14,22 +14,22 @@ Example Unsorted := node 1 (node 2 (node 3 leaf leaf) (node 4 leaf leaf)) (node 
 Inductive all : (nat -> Prop) -> tree -> Prop :=
   | all_leaf : forall p,
       all p leaf
-  | all_node : forall p n t1 t2,
-      all p t1 ->
-      all p t2 ->
+  | all_node : forall p n lhs rhs,
+      all p lhs ->
+      all p rhs ->
       p n ->
-      all p (node n t1 t2).
+      all p (node n lhs rhs).
 
 Hint Constructors all.
 
 Inductive sorted : tree -> Prop :=
   | sorted_leaf : sorted leaf
-  | sorted_node : forall n t1 t2,
-      sorted t1 ->
-      sorted t2 ->
-      all (fun x => x < n) t1 ->
-      all (fun x => n < x) t2 ->
-      sorted (node n t1 t2).
+  | sorted_node : forall n lhs rhs,
+      sorted lhs ->
+      sorted rhs ->
+      all (fun x => x < n) lhs ->
+      all (fun x => n < x) rhs ->
+      sorted (node n lhs rhs).
 
 Hint Constructors sorted.
 
@@ -44,23 +44,24 @@ Proof.
 Qed.
 
 Fixpoint elem_of (x : nat) (t : tree) : bool := match t with
-  | node n t1 t2 =>
+  | node n lhs rhs =>
       if x =? n then true else
-      if x <? n then elem_of x t1 else
-      elem_of x t2
+      if x <? n then elem_of x lhs else
+      elem_of x rhs
   | leaf => false
 end.
 
 Inductive elem_ofP : nat -> tree -> Prop :=
-  | elem_ofP_root : forall x lhs rhs, elem_ofP x (node x lhs rhs)
-  | elem_ofP_left : forall x x' lhs rhs,
+  | elem_ofP_root : forall x lhs rhs,
+      elem_ofP x (node x lhs rhs)
+  | elem_ofP_left : forall x n lhs rhs,
       elem_ofP x lhs ->
-      x < x' ->
-      elem_ofP x (node x' lhs rhs)
-  | elem_ofP_right : forall x x' lhs rhs,
+      x < n ->
+      elem_ofP x (node n lhs rhs)
+  | elem_ofP_right : forall x n lhs rhs,
       elem_ofP x rhs ->
-      x > x' ->
-      elem_ofP x (node x' lhs rhs).
+      x > n ->
+      elem_ofP x (node n lhs rhs).
 
 Hint Constructors elem_ofP.
 
@@ -69,10 +70,10 @@ Proof with auto.
   intros. split; intros.
   - induction H; simpl; subst.
     + rewrite Nat.eqb_refl. reflexivity.
-    + simpl. destruct (eqbP x x')...
-      destruct (ltbP x x')...
-    + destruct (eqbP x x')...
-      destruct (x <? x') eqn:Hlt...
+    + simpl. destruct (eqbP x n)...
+      destruct (ltbP x n)...
+    + destruct (eqbP x n)...
+      destruct (x <? n) eqn:Hlt...
       apply Nat.ltb_lt in Hlt; lia.
   - induction t; simpl in *; try discriminate.
     destruct (eqbP x n); subst...
@@ -99,10 +100,10 @@ Proof. reflexivity. Qed.
 
 Fixpoint insert (x : nat) (t : tree) : tree := match t with
   | leaf => node x leaf leaf
-  | node n t1 t2 =>
-      if x =? n then t else
-      if x <? n then node n (insert x t1) t2 else
-      node n t1 (insert x t2)
+  | node n lhs rhs =>
+      if x =? n then t
+      else if x <? n then node n (insert x lhs) rhs
+      else node n lhs (insert x rhs)
 end.
 
 Example InsertIntoEmpty : insert 5 leaf = node 5 leaf leaf.
