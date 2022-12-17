@@ -62,9 +62,28 @@ Inductive elem_ofP : nat -> tree -> Prop :=
       x > x' ->
       elem_ofP x (node x' lhs rhs).
 
-Lemma elem_of_prop : forall x t, elem_of x t = true <-> elem_ofP x t.
+Hint Constructors elem_ofP.
+
+Lemma elem_of_prop : forall x t, elem_ofP x t <-> elem_of x t = true.
+Proof with auto.
+  intros. split; intros.
+  - induction H; simpl; subst.
+    + rewrite Nat.eqb_refl. reflexivity.
+    + simpl. destruct (eqbP x x')...
+      destruct (ltbP x x')...
+    + destruct (eqbP x x')...
+      destruct (x <? x') eqn:Hlt...
+      apply Nat.ltb_lt in Hlt; lia.
+  - induction t; simpl in *; try discriminate.
+    destruct (eqbP x n); subst...
+    destruct (ltbP x n); subst...
+    assert (n < x) by lia...
+Qed.
+
+Lemma elem_of_reflect : forall x t, reflect (elem_ofP x t) (elem_of x t).
 Proof.
-Admitted.
+  intros. apply iff_reflect. apply elem_of_prop.
+Qed.
 
 Example SortedDoesntContain4 : elem_of 4 Sorted = false.
 Proof. reflexivity. Qed.
@@ -166,43 +185,107 @@ Proof with auto.
            apply IHsorted2.
 Qed.
 
+Lemma insert_correctP : forall t x y,
+  sorted t ->
+  elem_ofP y (insert x t) <-> (elem_ofP y t) \/ (y = x).
+Proof with auto.
+  intros; split; intros.
+  - rewrite elem_of_prop in H0.
+    rewrite insert_correct in H0...
+    destruct (elem_of y t) eqn: Helem.
+    rewrite <- elem_of_prop in Helem...
+    destruct (y =? x) eqn:Heq.
+    rewrite Nat.eqb_eq in Heq... discriminate.
+  - rewrite elem_of_prop.
+    rewrite insert_correct...
+    destruct H0...
+    rewrite elem_of_prop in H0; intuition.
+    rewrite <- Nat.eqb_eq in H0; intuition.
+Qed.
+
+From Coq Require Import Lists.List.
+
 Fixpoint bst_to_list (bst : tree) : list nat :=
   match bst with
     | leaf => nil
     | node x lhs rhs => (bst_to_list lhs) ++ x :: nil ++ (bst_to_list rhs)
   end.
 
-From Coq Require Import Lists.List.
+Fixpoint list_to_bst (l : list nat) : tree :=
+  match l with
+  | nil => leaf
+  | x :: xs => insert x (list_to_bst xs)
+  end.
 
-Definition list_to_bst (l : list nat) : tree := fold_left (fun acc e => insert e acc) l leaf.
+Lemma to_bst_sorted : forall (l : list nat),
+  sorted (list_to_bst l).
+Proof.
+  induction l.
+  - simpl; constructor.
+  - simpl. now apply insert_sorted.
+Qed.
 
-Lemma toBSTStillContains : forall (e : nat) (l : list nat),
+Lemma to_bst_still_contains : forall (e : nat) (l : list nat),
   (In e l) <-> elem_ofP e (list_to_bst l).
 Proof.
+  split; intros.
+  - induction l.
+    + inversion H.
+    + simpl in H. destruct H.
+      * subst. simpl.
+        rewrite insert_correctP. right. reflexivity.
+        apply to_bst_sorted.
+      * simpl.
+        rewrite insert_correctP. left. now apply IHl.
+        apply to_bst_sorted.
+  - induction l.
+    + inversion H.
+    + simpl in H.
 Admitted.
 
-Lemma toListStillContains : forall (e : nat) (t : tree),
-  (elem_ofP e t) <-> In e (bst_to_list t).
+Lemma to_list_preserve_all : forall e t p,
+  all p t ->
+  In e (bst_to_list t) ->
+  p e.
 Proof.
-Admitted.
+  intros. induction H; subst.
+  - inversion H0.
+  - simpl in H0. apply List.in_app_or in H0. destruct H0.
+    now apply IHall1 in H0.
+    destruct H0; subst; try assumption.
+    now apply IHall2 in H0.
+Qed.
 
-Lemma conversionThroughListPreservesElements : forall (e : nat) (t : tree),
+Lemma to_list_still_contains : forall (e : nat) (t : tree),
+  sorted t ->
+  (elem_ofP e t) <-> In e (bst_to_list t).
+Proof with auto.
+  intros e t Hsorted. split; intros.
+  - induction H; simpl.
+    + apply in_or_app. right. simpl; left; reflexivity.
+    + inversion Hsorted; subst. apply IHelem_ofP in H4.
+      apply in_or_app. now left.
+    + inversion Hsorted; subst. apply IHelem_ofP in H5.
+      apply in_or_app. right. now simpl; right.
+  - induction t.
+    + inversion H.
+    + inversion Hsorted; subst.
+      simpl in H. apply in_app_or in H. destruct H.
+      apply (to_list_preserve_all _ _ _ H5) in H as Hlt...
+      destruct H; subst...
+      apply (to_list_preserve_all _ _ _ H6) in H as Hlt...
+Qed.
+
+Lemma through_list_perserves_elements : forall (e : nat) (t : tree),
   sorted t -> (elem_ofP e t <-> elem_ofP e (list_to_bst (bst_to_list t))).
 Proof.
-  split.
-  - intros. inversion H0.
-    + assert (H_contains_root: elem_ofP x (node x lhs rhs)) by constructor.
-      apply toListStillContains in H_contains_root. apply toBSTStillContains in H_contains_root.
-      subst. assumption.
-    + assert (H_contains_left: elem_ofP e (node x' lhs rhs)). {
-        constructor; assumption.
-      }
-      apply toListStillContains in H_contains_left. apply toBSTStillContains in H_contains_left.
-      assumption.
-    + assert (H_contains_right: elem_ofP e (node x' lhs rhs)). {
-        constructor; assumption.
-      }
-      apply toListStillContains in H_contains_right. apply toBSTStillContains in H_contains_right.
-      assumption.
-  - intros. apply toListStillContains. apply toBSTStillContains. assumption.
+  intros e t Hsorted. split; intros.
+  - inversion H; subst;
+    solve [
+      inversion Hsorted; subst;
+      apply to_list_still_contains in H; auto;
+      apply to_bst_still_contains in H; auto
+    ].
+  - apply to_list_still_contains; auto.
+    apply to_bst_still_contains; auto.
 Qed.
