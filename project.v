@@ -240,8 +240,13 @@ Proof.
         apply to_bst_sorted.
   - induction l.
     + inversion H.
-    + simpl in H.
-Admitted.
+    + simpl in H. destruct (eqbP e a).
+      * subst. simpl. left. reflexivity.
+      * simpl. right.
+        rewrite insert_correctP in H; try apply to_bst_sorted.
+        destruct H; try contradiction.
+        now apply IHl in H.
+Qed.
 
 Lemma to_list_preserve_all : forall e t p,
   all p t ->
