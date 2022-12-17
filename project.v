@@ -295,3 +295,119 @@ Proof.
   - apply to_list_still_contains; auto.
     apply to_bst_still_contains; auto.
 Qed.
+
+Fixpoint max (t : tree) : nat :=
+  match t with
+  | node n lhs rhs =>
+      match rhs with
+      | leaf => n
+      | _ => max rhs
+      end
+  (* should never reach a leaf *)
+  | leaf => 0
+  end.
+
+Fixpoint delete x t :=
+  match t with
+  | leaf => leaf
+  | node n lhs rhs =>
+      if x =? n then
+        match lhs, rhs with
+        | leaf, leaf => leaf
+        | leaf, _ => rhs
+        | _, leaf => lhs
+        | _, _ => node (max lhs) (delete (max lhs) lhs) rhs
+        end
+      else if x <? n then
+        node n (delete x lhs) rhs
+      else
+        node n lhs (delete x rhs)
+  end.
+
+Lemma simpl_max : forall n n' lhs lhs' rhs',
+  max (node n lhs (node n' lhs' rhs')) = max (node n' lhs' rhs').
+Proof.
+  intros. reflexivity.
+Qed.
+
+Lemma max_preserves_all : forall p n lhs rhs,
+  all p (node n lhs rhs) ->
+  p (max (node n lhs rhs)).
+Proof.
+  intros.
+  generalize dependent n.
+  generalize dependent lhs.
+  induction rhs; intros.
+  - simpl. now inversion H.
+  - rewrite simpl_max.
+    inversion H; subst.
+    now apply IHrhs2 in H5.
+Qed.
+
+Lemma max_is_in_tree : forall t n lhs rhs,
+  t = node n lhs rhs ->
+  sorted t ->
+  elem_ofP (max t) t.
+Proof.
+  intros; subst.
+  generalize dependent n.
+  generalize dependent lhs.
+  induction rhs; intros lhs root Hsorted.
+  - constructor.
+  - inversion Hsorted; subst.
+    rewrite simpl_max.
+    apply elem_ofP_right.
+    now apply IHrhs2.
+    now apply max_preserves_all in H5.
+Qed.
+
+Lemma delete_all : forall p t x,
+  all p t ->
+  all p (delete x t).
+Proof.
+  intros. generalize dependent x.
+  induction H; subst; intros; auto.
+  simpl. destruct (eqbP x n).
+  - destruct lhs; destruct rhs; try assumption.
+    constructor.
+    + apply IHall1.
+    + assumption.
+    + now apply max_preserves_all in H.
+  - destruct (ltbP x n); auto.
+Qed.
+
+Lemma delete_correct : forall t x,
+  sorted t ->
+  elem_of x (delete x t) = false.
+Proof.
+  intros. generalize dependent x.
+  induction H; subst; intros; auto.
+  simpl elem_of. destruct (x =? n) eqn:Heq.
+  2: {
+    destruct (x <? n) eqn:Hlt.
+    - simpl. rewrite Heq; rewrite Hlt.
+      apply IHsorted1.
+    - simpl. rewrite Heq; rewrite Hlt.
+      apply IHsorted2.
+  }
+  rewrite Nat.eqb_eq in Heq; subst.
+  destruct lhs; destruct rhs; auto.
+Admitted.
+
+Lemma delete_correct' : forall t x,
+  sorted t ->
+  elem_ofP x (delete x t) -> False.
+Proof.
+  intros. generalize dependent x.
+  induction H; subst; intros. inversion H0.
+  simpl in H3. destruct (eqbP x n).
+  2: {
+    destruct (ltbP x n).
+    - inversion H3; subst; auto; try lia.
+      now apply IHsorted1 in H9.
+    - inversion H3; subst; auto; try lia.
+      now apply IHsorted2 in H9.
+  }
+  destruct lhs; destruct rhs.
+  - inversion H3.
+Admitted.
