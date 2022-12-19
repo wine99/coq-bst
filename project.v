@@ -303,7 +303,6 @@ Fixpoint max (t : tree) : nat :=
       | leaf => n
       | _ => max rhs
       end
-  (* should never reach a leaf *)
   | leaf => 0
   end.
 
@@ -394,20 +393,52 @@ Proof.
   destruct lhs; destruct rhs; auto.
 Admitted.
 
+Lemma no_deletion_if_all_less : forall n n' lhs rhs,
+  sorted (node n' lhs rhs) ->
+  all (fun x : nat => n < x) (node n' lhs rhs) ->
+  delete n (node n' lhs rhs) = node n' lhs rhs.
+Proof.
+  intros. induction H. {
+    reflexivity.
+  }
+  simpl. destruct (eqbP n n0).
+  - subst. inversion H0. lia.
+  - inversion H0. subst. rewrite <- Nat.ltb_lt in H11. rewrite H11.
+    apply IHsorted1 in H9. now rewrite H9.
+Qed.
+
+Lemma no_deletion_if_all_greater : forall n n' lhs rhs,
+  sorted (node n' lhs rhs) ->
+  all (fun x : nat => n > x) (node n' lhs rhs) ->
+  delete n (node n' lhs rhs) = node n' lhs rhs.
+Proof.
+  intros. induction H. {
+    reflexivity.
+  }
+  simpl. destruct (eqbP n n0).
+  - subst. inversion H0. lia.
+  - inversion H0. subst. destruct (ltbP n n0); try lia.
+    apply IHsorted2 in H10. now rewrite H10.
+Qed.
+
 Lemma delete_correct' : forall t x,
   sorted t ->
   elem_ofP x (delete x t) -> False.
 Proof.
-  intros. generalize dependent x.
-  induction H; subst; intros. inversion H0.
-  simpl in H3. destruct (eqbP x n).
-  2: {
-    destruct (ltbP x n).
+  intros t x HSorted HBad.
+  induction HSorted; subst; intros. {
+    inversion HBad.
+  }
+  simpl in HBad. destruct (eqbP x n).
+  - subst. destruct lhs eqn:d1; destruct rhs eqn:d2.
+    + inversion HBad.
+    + apply IHHSorted2. rewrite no_deletion_if_all_less; assumption.
+    + apply IHHSorted1. rewrite no_deletion_if_all_greater; assumption.
+    + subst.
+
+  - destruct (ltbP x n).
     - inversion H3; subst; auto; try lia.
       now apply IHsorted1 in H9.
     - inversion H3; subst; auto; try lia.
       now apply IHsorted2 in H9.
-  }
-  destruct lhs; destruct rhs.
-  - inversion H3.
 Admitted.
