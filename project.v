@@ -323,11 +323,30 @@ Fixpoint delete x t :=
         node n lhs (delete x rhs)
   end.
 
+Example deletes_nothing : delete 0 (node 10 leaf leaf) = node 10 leaf leaf.
+Proof. reflexivity. Qed.
+
+Example deletes_something : delete 10 (node 10 leaf leaf) = leaf.
+Proof. reflexivity. Qed.
+
+Example rotates_correctly : delete 10 Sorted = node 7 (node 5 (node 2 leaf leaf) leaf) (node 16 (node 12 leaf leaf) (node 17 leaf leaf)).
+Proof. reflexivity. Qed.
+
 Lemma simpl_max : forall n n' lhs lhs' rhs',
   max (node n lhs (node n' lhs' rhs')) = max (node n' lhs' rhs').
 Proof.
   intros. reflexivity.
 Qed.
+
+Lemma max_is_max : forall t n n',
+  sorted t ->
+  elem_ofP n t ->
+  elem_ofP n' t ->
+  n' <> n ->
+  max t = n ->
+  all (fun x => x < n') t.
+Proof.
+Admitted.
 
 Lemma max_preserves_all : forall p n lhs rhs,
   all p (node n lhs rhs) ->
@@ -374,6 +393,8 @@ Proof.
     + now apply max_preserves_all in H.
   - destruct (ltbP x n); auto.
 Qed.
+
+
 
 Lemma delete_correct : forall t x,
   sorted t ->
@@ -434,11 +455,5 @@ Proof.
     + inversion HBad.
     + apply IHHSorted2. rewrite no_deletion_if_all_less; assumption.
     + apply IHHSorted1. rewrite no_deletion_if_all_greater; assumption.
-    + subst.
-
-  - destruct (ltbP x n).
-    - inversion H3; subst; auto; try lia.
-      now apply IHsorted1 in H9.
-    - inversion H3; subst; auto; try lia.
-      now apply IHsorted2 in H9.
+    + subst. unfold max in HBad.
 Admitted.
