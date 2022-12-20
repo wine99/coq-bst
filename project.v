@@ -60,7 +60,7 @@ Inductive elem_ofP : nat -> tree -> Prop :=
       elem_ofP x (node n lhs rhs)
   | elem_ofP_right : forall x n lhs rhs,
       elem_ofP x rhs ->
-      x > n ->
+      n < x ->
       elem_ofP x (node n lhs rhs).
 
 Hint Constructors elem_ofP.
@@ -338,16 +338,6 @@ Proof.
   intros. reflexivity.
 Qed.
 
-Lemma max_is_max : forall t n n',
-  sorted t ->
-  elem_ofP n t ->
-  elem_ofP n' t ->
-  n' <> n ->
-  max t = n ->
-  all (fun x => x < n') t.
-Proof.
-Admitted.
-
 Lemma max_preserves_all : forall p n lhs rhs,
   all p (node n lhs rhs) ->
   p (max (node n lhs rhs)).
@@ -362,6 +352,7 @@ Proof.
     now apply IHrhs2 in H5.
 Qed.
 
+(* Have not used this lemma *)
 Lemma max_is_in_tree : forall t n lhs rhs,
   t = node n lhs rhs ->
   sorted t ->
@@ -394,26 +385,6 @@ Proof.
   - destruct (ltbP x n); auto.
 Qed.
 
-
-
-Lemma delete_correct : forall t x,
-  sorted t ->
-  elem_of x (delete x t) = false.
-Proof.
-  intros. generalize dependent x.
-  induction H; subst; intros; auto.
-  simpl elem_of. destruct (x =? n) eqn:Heq.
-  2: {
-    destruct (x <? n) eqn:Hlt.
-    - simpl. rewrite Heq; rewrite Hlt.
-      apply IHsorted1.
-    - simpl. rewrite Heq; rewrite Hlt.
-      apply IHsorted2.
-  }
-  rewrite Nat.eqb_eq in Heq; subst.
-  destruct lhs; destruct rhs; auto.
-Admitted.
-
 Lemma no_deletion_if_all_less : forall n n' lhs rhs,
   sorted (node n' lhs rhs) ->
   all (fun x : nat => n < x) (node n' lhs rhs) ->
@@ -430,7 +401,7 @@ Qed.
 
 Lemma no_deletion_if_all_greater : forall n n' lhs rhs,
   sorted (node n' lhs rhs) ->
-  all (fun x : nat => n > x) (node n' lhs rhs) ->
+  all (fun x : nat => x < n) (node n' lhs rhs) ->
   delete n (node n' lhs rhs) = node n' lhs rhs.
 Proof.
   intros. induction H. {
@@ -438,22 +409,111 @@ Proof.
   }
   simpl. destruct (eqbP n n0).
   - subst. inversion H0. lia.
-  - inversion H0. subst. destruct (ltbP n n0); try lia.
+  - inversion H0; subst. destruct (ltbP n n0); try lia.
     apply IHsorted2 in H10. now rewrite H10.
 Qed.
 
-Lemma delete_correct' : forall t x,
+Lemma delete_correct : forall t x,
   sorted t ->
   elem_ofP x (delete x t) -> False.
 Proof.
   intros t x HSorted HBad.
-  induction HSorted; subst; intros. {
-    inversion HBad.
-  }
+  induction HSorted; subst; intros.
+  { inversion HBad. }
   simpl in HBad. destruct (eqbP x n).
   - subst. destruct lhs eqn:d1; destruct rhs eqn:d2.
     + inversion HBad.
     + apply IHHSorted2. rewrite no_deletion_if_all_less; assumption.
     + apply IHHSorted1. rewrite no_deletion_if_all_greater; assumption.
-    + subst. unfold max in HBad.
-Admitted.
+    + rewrite <- d1 in *. rewrite <- d2 in *. inversion HBad;
+      try (
+        assert (Hmax: max lhs < n);
+        try (subst lhs; apply max_preserves_all; assumption);
+        lia
+      ).
+      assert (Hrhs: delete n rhs = rhs).
+      { subst rhs; apply no_deletion_if_all_less; assumption. }
+      rewrite <- Hrhs in H4.
+      now apply IHHSorted2.
+  - destruct (ltbP x n);
+    (inversion HBad; subst; auto; lia).
+Qed.
+
+Lemma all_less_trans : forall t n n',
+  sorted t ->
+  n < n' ->
+  all (fun x => x < n) t ->
+  all (fun x => x < n') t.
+Proof.
+  intros. remember (fun x => x < n) as p.
+  induction H1; auto. inversion H; subst.
+  constructor.
+  apply IHall1; auto.
+  apply IHall2; auto.
+  lia.
+Qed.
+
+Lemma all_greater_trans : forall t n n',
+  sorted t ->
+  n' < n ->
+  all (fun x => n < x) t ->
+  all (fun x => n' < x) t.
+Proof.
+  intros. remember (fun x => n < x) as p.
+  induction H1; auto. inversion H; subst.
+  constructor.
+  apply IHall1; auto.
+  apply IHall2; auto.
+  lia.
+Qed.
+
+Lemma simpl_delete : forall m n lhs n' rhs1 rhs2,
+  n < m ->
+  sorted (node n lhs (node n' rhs1 rhs2)) ->
+  delete m (node n lhs (node n' rhs1 rhs2)) =
+  node n lhs (delete m (node n' rhs1 rhs2)).
+Proof.
+  intros; simpl.
+  destruct (eqbP m n); try lia.
+  destruct (ltbP m n); try lia.
+  reflexivity.
+Qed.
+
+Lemma delete_max : forall t n lhs rhs,
+  t = node n lhs rhs ->
+  sorted t ->
+  all (fun x => x < max t) (delete (max t) t).
+Proof with auto.
+  intros; subst.
+  inversion H0; subst.
+  remember (max (node n lhs rhs)) as m.
+  generalize dependent n.
+  generalize dependent lhs.
+  induction rhs; intros.
+  - subst. simpl. rewrite Nat.eqb_refl.
+    destruct lhs...
+  - rewrite simpl_max in Heqm.
+    assert (Hmgt: n0 < m).
+    { subst; apply max_preserves_all... }
+    rewrite simpl_delete...
+    constructor...
+    apply all_less_trans with (n := n0)...
+    inversion H4; apply IHrhs2...
+Qed.
+
+Lemma delete_sorted : forall t x,
+  sorted t ->
+  sorted (delete x t).
+Proof.
+  intros. generalize dependent x.
+  induction H; subst; intros; auto.
+  simpl. destruct (eqbP x n).
+  - subst. destruct lhs; destruct rhs; try assumption.
+    constructor; auto.
+    + eapply delete_max; eauto.
+    + assert (Hmax: max (node n0 lhs1 lhs2) < n).
+      { apply max_preserves_all; assumption. }
+      apply all_greater_trans with (n := n); assumption.
+  - destruct (ltbP x n);
+    constructor; auto; now apply delete_all.
+Qed.
