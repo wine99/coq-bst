@@ -1,6 +1,6 @@
 COQMFFLAGS := -Q . BST
 
-ALLVFILES := helpers.v project.v
+ALLVFILES := helpers.v project.v testAvl.v
 
 build: Makefile.coq
 	$(MAKE) -f Makefile.coq

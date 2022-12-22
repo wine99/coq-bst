@@ -1,5 +1,5 @@
-From Coq Require Import Arith.PeanoNat.
-From Coq Require Import Setoids.Setoid.
+Require Import Arith.
+Require Import Setoids.Setoid.
 
 Ltac solve_by_inverts n :=
   match goal with | H : ?T |- _ =>

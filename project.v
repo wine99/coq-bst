@@ -1,7 +1,8 @@
 Set Warnings "-deprecated-hint-without-locality,-implicit-core-hint-db".
-From Coq Require Import Arith.PeanoNat.
-From Coq Require Import Setoids.Setoid.
-From Coq Require Import Lia.
+Require Import PeanoNat.
+Require Import Setoids.Setoid.
+Require Import Lia.
+Require Import List. Import ListNotations.
 From BST Require Import helpers.
 
 Inductive tree :=
@@ -208,13 +209,13 @@ From Coq Require Import Lists.List.
 
 Fixpoint bst_to_list (bst : tree) : list nat :=
   match bst with
-    | leaf => nil
-    | node x lhs rhs => (bst_to_list lhs) ++ x :: nil ++ (bst_to_list rhs)
+    | leaf => []
+    | node x lhs rhs => (bst_to_list lhs) ++ [x] ++ (bst_to_list rhs)
   end.
 
 Fixpoint list_to_bst (l : list nat) : tree :=
   match l with
-  | nil => leaf
+  | [] => leaf
   | x :: xs => insert x (list_to_bst xs)
   end.
 
@@ -517,3 +518,172 @@ Proof.
   - destruct (ltbP x n);
     constructor; auto; now apply delete_all.
 Qed.
+
+(* ----------------------- AVL ----------------------- *)
+
+Module AVL.
+
+Fixpoint height (t : tree) : nat :=
+  match t with
+  | leaf => 0
+  | node _ lhs rhs => S (Nat.max (height lhs) (height rhs))
+  end.
+
+Fixpoint balanced t :=
+  match t with
+  | leaf => true
+  | node n lhs rhs =>
+      if andb (balanced lhs) (balanced rhs) then
+        let hl := height lhs in
+        let hr := height rhs in
+        if hl =? hr then true
+        else if hl =? S hr then true
+        else if hr =? S hl then true
+        else false
+      else false
+  end.
+
+Inductive balancedP : tree -> Prop :=
+  | balanced_leaf : balancedP leaf
+  | balanced_eq : forall n lhs rhs,
+      balancedP lhs ->
+      balancedP rhs ->
+      height lhs = height rhs ->
+      balancedP (node n lhs rhs)
+  | balanced_l1 : forall n lhs rhs,
+      balancedP lhs ->
+      balancedP rhs ->
+      height lhs = S (height rhs) ->
+      balancedP (node n lhs rhs)
+  | balanced_r1 : forall n lhs rhs,
+      balancedP lhs ->
+      balancedP rhs ->
+      height rhs = S (height lhs) ->
+      balancedP (node n lhs rhs).
+
+Hint Constructors balancedP.
+
+Lemma height_single : forall n,
+  height (node n leaf leaf) = 1.
+Proof. reflexivity. Qed.
+
+Ltac my_simpl :=
+  repeat (
+    simpl; auto;
+    match goal with
+    | H: ?x, H': ?x |- _ => clear H'
+    | H: ?x = true |- _ => rewrite H in *
+    | H: ?x = false |- _ => rewrite H in *
+    | |- context [?x =? ?y] => destruct (eqbP x y); try lia
+    | |- context [?x <? ?y] => destruct (ltbP x y); try lia
+    end;
+    simpl; auto
+  ).
+
+Lemma balanced_prop : forall t,
+  balancedP t <-> balanced t = true.
+Proof.
+  split; intros.
+  - induction H; my_simpl.
+  - induction t; auto.
+    simpl in H; destruct (balanced t1); destruct (balanced t2);
+    try discriminate; simpl in H.
+    destruct (eqbP (height t1) (height t2)); auto.
+    destruct (eqbP (height t1) (S (height t2))); auto.
+    destruct (eqbP (height t2) (S (height t1))); auto.
+    discriminate.
+Qed.
+
+Lemma balanced_reflect : forall t, reflect (balancedP t) (balanced t).
+Proof.
+  intros. apply iff_reflect. apply balanced_prop.
+Qed.
+
+Example test_balanced_p1 : balancedP Sorted.
+Proof. unfold Sorted; auto. Qed.
+
+Example test_balanced_p2 : balancedP Unsorted.
+Proof. unfold Unsorted; auto. Qed.
+
+Example test_balanced_n1 : balancedP (node 10 Unsorted (node 11 leaf leaf)) -> False.
+Proof.
+  unfold Unsorted; intro.
+  solve_by_inverts 2.
+Qed.
+
+Example test_balanced_n2 : balancedP (node 10 (node 11 leaf leaf) Unsorted) -> False.
+Proof.
+  unfold Unsorted; intro.
+  solve_by_inverts 2.
+Qed.
+
+Definition avl t := sorted t /\ balancedP t.
+
+Definition balance n lhs rhs :=
+  let hl := height lhs in
+  let hr := height rhs in
+  if S hr <? hl then
+    match lhs with
+    | leaf => leaf (* impossible *)
+    | node n' lhs1 lhs2 =>
+        if height lhs2 <=? height lhs1 then
+          node n' lhs1 (node n lhs2 rhs)
+        else
+          match lhs2 with
+          | leaf => leaf (* impossible *)
+          | node n'' lhs2_1 lhs2_2 =>
+              node n'' (node n' lhs1 lhs2_1) (node n lhs2_2 rhs)
+          end
+    end
+  else if S hl <? hr then
+    match rhs with
+    | leaf => leaf (* impossible *)
+    | node n' rhs1 rhs2 =>
+        if height rhs1 <=? height rhs2 then
+          node n' (node n lhs rhs1) rhs2
+        else
+          match rhs1 with
+          | leaf => leaf (* impossible *)
+          | node n'' rhs1_1 rhs1_2 =>
+              node n'' (node n lhs rhs1_1) (node n' rhs1_2 rhs2)
+          end
+    end
+  else node n lhs rhs.
+
+Fixpoint insert x t :=
+  match t with
+  | leaf => node x leaf leaf
+  | node n lhs rhs =>
+      if x =? n then t
+      else if x <? n then balance n (insert x lhs) rhs
+      else balance n lhs (insert x rhs)
+  end.
+
+Ltac invert_and_construct :=
+  repeat
+    match goal with
+    | |- sorted _ _ (node _ _ _) => try assumption; constructor
+    | |- sorted (if ?x then _ else _) => destruct x
+    | |- all _ (node _ _ _) => try assumption; constructor
+    | H: sorted (node _ _ _) |- _ => inversion H; clear H; subst
+    | H: all _ (node _ _ _) |- _ => inversion H; clear H; subst
+    end;
+    try lia; auto.
+
+Lemma balance_sorted : forall n lhs rhs,
+  sorted (node n lhs rhs) ->
+  sorted (balance n lhs rhs).
+Proof with auto.
+  intros.
+  inversion H; clear H; subst.
+  destruct lhs; destruct rhs; unfold balance; cbn; auto.
+  - destruct rhs1; destruct rhs2; cbn; invert_and_construct.
+    repeat constructor; try lia; eauto using all_greater_trans.
+  - destruct lhs1; destruct lhs2; cbn; invert_and_construct;
+    repeat constructor; try lia; eauto using all_less_trans.
+  - destruct lhs1; destruct lhs2; destruct rhs1; destruct rhs2; invert_and_construct;
+    repeat constructor; try lia; eauto using all_greater_trans, all_less_trans.
+Qed.
+
+
+End AVL.
