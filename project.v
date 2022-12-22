@@ -291,8 +291,7 @@ Proof.
     solve [
       inversion Hsorted; subst;
       apply to_list_still_contains in H; auto;
-      apply to_bst_still_contains in H; auto
-    ].
+      apply to_bst_still_contains in H; auto ].
   - apply to_list_still_contains; auto.
     apply to_bst_still_contains; auto.
 Qed.
@@ -391,9 +390,7 @@ Lemma no_deletion_if_all_less : forall n n' lhs rhs,
   all (fun x : nat => n < x) (node n' lhs rhs) ->
   delete n (node n' lhs rhs) = node n' lhs rhs.
 Proof.
-  intros. induction H. {
-    reflexivity.
-  }
+  intros. induction H. reflexivity.
   simpl. destruct (eqbP n n0).
   - subst. inversion H0. lia.
   - inversion H0. subst. rewrite <- Nat.ltb_lt in H11. rewrite H11.
@@ -405,9 +402,7 @@ Lemma no_deletion_if_all_greater : forall n n' lhs rhs,
   all (fun x : nat => x < n) (node n' lhs rhs) ->
   delete n (node n' lhs rhs) = node n' lhs rhs.
 Proof.
-  intros. induction H. {
-    reflexivity.
-  }
+  intros. induction H. reflexivity.
   simpl. destruct (eqbP n n0).
   - subst. inversion H0. lia.
   - inversion H0; subst. destruct (ltbP n n0); try lia.
@@ -430,8 +425,7 @@ Proof.
       try (
         assert (Hmax: max lhs < n);
         try (subst lhs; apply max_preserves_all; assumption);
-        lia
-      ).
+        lia ).
       assert (Hrhs: delete n rhs = rhs).
       { subst rhs; apply no_deletion_if_all_less; assumption. }
       rewrite <- Hrhs in H4.
@@ -577,8 +571,7 @@ Ltac my_simpl :=
     | |- context [?x =? ?y] => destruct (eqbP x y); try lia
     | |- context [?x <? ?y] => destruct (ltbP x y); try lia
     end;
-    simpl; auto
-  ).
+    simpl; auto ).
 
 Lemma balanced_prop : forall t,
   balancedP t <-> balanced t = true.
@@ -663,12 +656,19 @@ Ltac invert_and_construct :=
   repeat
     match goal with
     | |- sorted _ _ (node _ _ _) => try assumption; constructor
+    | |- sorted (if ?x =? ?y then _ else _) => destruct (eqbP x y)
+    | |- sorted (if ?x <? ?y then _ else _) => destruct (ltbP x y)
     | |- sorted (if ?x then _ else _) => destruct x
     | |- all _ (node _ _ _) => try assumption; constructor
+    | |- all _ (if ?x then _ else _) => destruct x
+    | |- all _ (match ?t with leaf => _ | node _ _ _ => _ end) => destruct t
     | H: sorted (node _ _ _) |- _ => inversion H; clear H; subst
     | H: all _ (node _ _ _) |- _ => inversion H; clear H; subst
     end;
     try lia; auto.
+
+Ltac construct_with_all_tran :=
+  repeat constructor; try lia; eauto using all_greater_trans, all_less_trans.
 
 Lemma balance_sorted : forall n lhs rhs,
   sorted (node n lhs rhs) ->
@@ -678,12 +678,62 @@ Proof with auto.
   inversion H; clear H; subst.
   destruct lhs; destruct rhs; unfold balance; cbn; auto.
   - destruct rhs1; destruct rhs2; cbn; invert_and_construct.
-    repeat constructor; try lia; eauto using all_greater_trans.
+    construct_with_all_tran.
   - destruct lhs1; destruct lhs2; cbn; invert_and_construct;
-    repeat constructor; try lia; eauto using all_less_trans.
+    construct_with_all_tran.
   - destruct lhs1; destruct lhs2; destruct rhs1; destruct rhs2; invert_and_construct;
-    repeat constructor; try lia; eauto using all_greater_trans, all_less_trans.
+    construct_with_all_tran.
 Qed.
 
+Lemma balance_all : forall p n lhs rhs,
+  all p (node n lhs rhs) ->
+  all p (balance n lhs rhs).
+Proof.
+  intros.
+  inversion H; clear H; subst.
+  destruct lhs; destruct rhs; unfold balance; cbn; invert_and_construct.
+Qed.
+
+Lemma insert_all : forall p x t,
+  all p t ->
+  p x ->
+  all p (insert x t).
+Proof.
+  intros. generalize dependent x.
+  induction t; intros; simpl; auto.
+  invert_and_construct; auto using balance_all.
+Qed.
+
+Ltac use_helper_lemmas :=
+  match goal with
+  | |- sorted (balance _ _ _) => apply balance_sorted
+  | |- all _ (balance _ _ _) => apply balance_all
+  | |- all _ (insert _ _) => apply insert_all
+  end;
+  try constructor; auto.
+
+Ltac invert_insert H x n :=
+  unfold insert in H;
+  destruct (eqbP x n) as [Htac | Htac]; try lia; clear Htac;
+  destruct (ltbP x n) as [Htac | Htac]; try lia; clear Htac;
+  fold insert in H.
+
+Lemma insert_sorted : forall x t,
+  sorted t ->
+  sorted (insert x t).
+Proof.
+  intros. induction H; simpl; auto.
+  invert_and_construct.
+  destruct lhs; destruct rhs; unfold insert; simpl; auto;
+  invert_and_construct; repeat use_helper_lemmas.
+  3: {
+    assert (Hlt: n < x); try lia.
+    repeat use_helper_lemmas. }
+  all:
+    destruct (eqbP x n0); auto; fold insert;
+    destruct (ltbP x n0);
+    [ | assert (Hlt: n0 < x) by lia ];
+    solve [ invert_insert IHsorted1 x n0; repeat use_helper_lemmas ].
+Qed.
 
 End AVL.
