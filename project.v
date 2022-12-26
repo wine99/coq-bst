@@ -736,4 +736,91 @@ Proof.
     solve [ invert_insert IHsorted1 x n0; repeat use_helper_lemmas ].
 Qed.
 
+Lemma SS_lt_S : forall x,
+  S (S x) <? S x = false.
+Proof.
+  induction x; auto.
+Qed.
+
+Lemma SS_lt_SS: forall x,
+  S (S x) <? S (S x) = false.
+Proof.
+  induction x; auto.
+Qed.
+
+Lemma SSS_lt_S : forall x,
+  S (S (S x)) <? S x = false.
+Proof.
+  induction x; auto.
+Qed.
+
+Lemma already_balanced : forall n lhs rhs,
+  balancedP (node n lhs rhs) ->
+  balancedP (balance n lhs rhs).
+Proof.
+  intros.
+  destruct lhs; destruct rhs; auto.
+  - inversion H; try solve_by_invert.
+    destruct rhs1; destruct rhs2; try solve_by_invert; auto.
+  - inversion H; try solve_by_invert.
+    destruct lhs1; destruct lhs2; try solve_by_invert; auto.
+  - inversion H; try solve_by_invert;
+    unfold balance; rewrite H5; simpl;
+    try rewrite SS_lt_S;
+    try rewrite SSS_lt_S;
+    try rewrite SS_lt_SS; auto.
+Qed.
+
+Lemma insert_increase_height : forall x t,
+  height (insert x t) = height t \/
+  height (insert x t) = S (height t).
+Proof.
+  intros. induction t; simpl; auto.
+  destruct (eqbP x n).
+  - left. auto.
+  - destruct (ltbP x n).
+  Admitted.
+
+Lemma insert_ballanced : forall x t,
+  sorted t ->
+  balancedP t ->
+  balancedP (insert x t).
+Proof.
+  (* intros. induction H; intros; simpl; auto;
+  destruct lhs; destruct rhs; unfold insert; simpl; auto;
+  destruct (eqbP x n); auto; fold insert;
+  destruct (ltbP x n); try solve [cbn; auto].
+  - unfold balance.
+    destruct rhs1; destruct rhs2; simpl; auto;
+    try solve_by_inverts 2.
+  - destruct (eqbP x n0); destruct (ltbP x n0);
+    destruct rhs1; destruct rhs2; simpl; auto;
+    try solve_by_inverts 2; solve [constructor; auto].
+  - destruct (eqbP x n0); destruct (ltbP x n0);
+    destruct lhs1; destruct lhs2; simpl; auto;
+    try solve_by_inverts 2; solve [constructor; auto].
+  - destruct (eqbP x n0); destruct (ltbP x n0);
+    destruct lhs1; destruct lhs2; simpl; auto;
+    try solve_by_inverts 2; solve [constructor; auto].
+  - destruct (eqbP x n0); destruct (ltbP x n0);
+    apply already_balanced; auto.
+    + inversion H0; subst.
+      * specialize (IHsorted1 H11).
+        simpl in IHsorted1; destruct (eqbP x n0) in IHsorted1; try lia.
+        destruct (ltbP x n0) in IHsorted1; try lia.
+        apply balanced_l1; auto.
+        assert (Heq: x =? n0 = false) by (apply Nat.eqb_neq; lia). *)
+
+  intros.
+  induction t; intros; simpl; auto;
+  destruct (eqbP x n); auto; destruct (ltbP x n);
+  inversion H; inversion H0; subst; auto.
+  - destruct t1; destruct t2; unfold insert;
+    try solve_by_inverts 2; try solve [cbn; auto]; fold insert.
+    destruct (x =? n0) eqn:Heq.
+    + apply already_balanced; assumption.
+    + destruct (x <? n0) eqn:Hlt; fold insert.
+      * apply already_balanced.
+Admitted.
+
 End AVL.
