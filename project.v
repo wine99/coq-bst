@@ -771,6 +771,11 @@ Proof.
     try rewrite SS_lt_SS; auto.
 Qed.
 
+Lemma insert_exists : forall x t,
+  exists n lhs rhs, insert x t = node n lhs rhs.
+Proof.
+Admitted.
+
 Lemma insert_increase_height : forall x t,
   height (insert x t) = height t \/
   height (insert x t) = S (height t).
@@ -781,46 +786,128 @@ Proof.
   - destruct (ltbP x n).
   Admitted.
 
-Lemma insert_ballanced : forall x t,
-  sorted t ->
+Lemma insert_balanced : forall x t,
   balancedP t ->
   balancedP (insert x t).
-Proof.
-  (* intros. induction H; intros; simpl; auto;
-  destruct lhs; destruct rhs; unfold insert; simpl; auto;
-  destruct (eqbP x n); auto; fold insert;
-  destruct (ltbP x n); try solve [cbn; auto].
-  - unfold balance.
-    destruct rhs1; destruct rhs2; simpl; auto;
-    try solve_by_inverts 2.
-  - destruct (eqbP x n0); destruct (ltbP x n0);
-    destruct rhs1; destruct rhs2; simpl; auto;
-    try solve_by_inverts 2; solve [constructor; auto].
-  - destruct (eqbP x n0); destruct (ltbP x n0);
-    destruct lhs1; destruct lhs2; simpl; auto;
-    try solve_by_inverts 2; solve [constructor; auto].
-  - destruct (eqbP x n0); destruct (ltbP x n0);
-    destruct lhs1; destruct lhs2; simpl; auto;
-    try solve_by_inverts 2; solve [constructor; auto].
-  - destruct (eqbP x n0); destruct (ltbP x n0);
-    apply already_balanced; auto.
-    + inversion H0; subst.
-      * specialize (IHsorted1 H11).
-        simpl in IHsorted1; destruct (eqbP x n0) in IHsorted1; try lia.
-        destruct (ltbP x n0) in IHsorted1; try lia.
-        apply balanced_l1; auto.
-        assert (Heq: x =? n0 = false) by (apply Nat.eqb_neq; lia). *)
+Proof with try lia.
+  intros. induction H.
+  - simpl insert. auto.
+  - unfold insert.
+    destruct (x =? n) eqn:Heq; auto.
+    fold insert. destruct (x <? n) eqn:Hlt.
+    + apply already_balanced.
+      assert (Hh: height (insert x lhs) = height lhs \/ height (insert x lhs) = S (height lhs))
+        by apply insert_increase_height.
+      destruct Hh as [Hh | Hh];
+      [ apply balanced_eq | apply balanced_l1 ];
+      try rewrite Hh; auto.
+    + apply already_balanced.
+      assert (Hh: height (insert x rhs) = height rhs \/ height (insert x rhs) = S (height rhs))
+        by apply insert_increase_height.
+      destruct Hh as [Hh | Hh];
+      [ apply balanced_eq | apply balanced_r1 ];
+      try rewrite Hh; auto.
+  - unfold insert.
+    destruct (x =? n) eqn:Heq; auto.
+    fold insert. destruct (x <? n) eqn:Hlt.
+    + assert (Hh: height (insert x lhs) = height lhs \/ height (insert x lhs) = S (height lhs))
+        by apply insert_increase_height.
+      destruct Hh as [Hh | Hh].
+      * apply already_balanced. apply balanced_l1; try rewrite Hh; auto.
+      * destruct lhs; [ inversion H1 |].
+        assert (Ht: exists n0' lhs1' lhs2',
+          insert x (node n0 lhs1 lhs2) = node n0' lhs1' lhs2')
+          by apply insert_exists.
+        destruct Ht as [n0' [lhs1' [lhs2' Ht]]].
+        rewrite Ht in *. rewrite H1 in *.
+        unfold balance.
+        assert (Hlt' : S (height rhs) < height (node n0' lhs1' lhs2'))...
+        rewrite <- Nat.ltb_lt in Hlt'.
+        rewrite Hlt'.
+        inversion IHbalancedP1; subst.
+        -- destruct (lebP (height lhs2') (height lhs1'))...
+           inversion Hh.
+           assert (Hh1: height lhs1' = S (height rhs))...
+           assert (Hh2: height lhs2' = S (height rhs))...
+           apply balanced_r1; auto; simpl...
+        -- destruct (lebP (height lhs2') (height lhs1'))...
+           inversion Hh.
+           assert (Hh1: height lhs1' = S (height rhs))...
+           assert (Hh2: height lhs2' = height rhs)...
+           apply balanced_eq; auto; simpl...
+        -- destruct (lebP (height lhs2') (height lhs1'))...
+           destruct lhs2'; inversion H7. inversion Hh.
+           inversion H6; subst.
+           ++ assert (Hh1: height lhs2'1 = height lhs1')...
+              apply balanced_eq; auto.
+              apply balanced_eq; auto...
+              simpl...
+           ++ assert (Hh1: height lhs2'1 = height lhs1')...
+              assert (Hh2: height rhs = S (height lhs2'2))...
+              apply balanced_eq; auto; simpl...
+           ++ assert (Hh1: S (height lhs2'1) = height lhs1')...
+              assert (Hh2: height rhs = height lhs2'2)...
+              apply balanced_eq; auto; simpl...
+    + assert (Hh: height (insert x rhs) = height rhs \/
+        height (insert x rhs) = S (height rhs))
+        by apply insert_increase_height.
+      destruct Hh as [Hh | Hh]; apply already_balanced;
+      [ apply balanced_l1 | apply balanced_eq ]; try rewrite Hh; auto.
+  - unfold insert.
+    destruct (x =? n) eqn:Heq; auto.
+    fold insert. destruct (x <? n) eqn:Hlt.
+    + assert (Hh: height (insert x lhs) = height lhs \/
+        height (insert x lhs) = S (height lhs))
+        by apply insert_increase_height.
+      destruct Hh as [Hh | Hh]; apply already_balanced;
+      [ apply balanced_r1 | apply balanced_eq ]; try rewrite Hh; auto.
+    + assert (Hh: height (insert x rhs) = height rhs \/
+        height (insert x rhs) = S (height rhs))
+        by apply insert_increase_height.
+      destruct Hh as [Hh | Hh].
+      * apply already_balanced. apply balanced_r1; try rewrite Hh; auto.
+      * destruct rhs; [ inversion H1 |].
+        assert (Ht: exists n0' rhs1' rhs2',
+          insert x (node n0 rhs1 rhs2) = node n0' rhs1' rhs2')
+          by apply insert_exists.
+        destruct Ht as [n0' [rhs1' [rhs2' Ht]]].
+        rewrite Ht in *. rewrite H1 in *.
+        unfold balance.
+        destruct (ltbP (S (height (node n0' rhs1' rhs2'))) (height lhs))...
+        destruct (ltbP (S (height lhs)) (height (node n0' rhs1' rhs2')))...
+        inversion IHbalancedP2; subst.
+        -- destruct (lebP (height rhs1') (height rhs2'))...
+           inversion Hh.
+           assert (Hh1: height rhs1' = S (height lhs))...
+           assert (Hh2: height rhs2' = S (height lhs))...
+           apply balanced_l1; auto; simpl...
+        -- destruct (lebP (height rhs1') (height rhs2'))...
+           inversion Hh.
+           destruct rhs1'; inversion H9.
+           inversion H7; subst.
+           ++ assert (Hh1: height rhs1'1 = height lhs)...
+              apply balanced_eq; auto.
+              apply balanced_eq; auto...
+              simpl...
+           ++ assert (Hh1: height rhs1'1 = height lhs)...
+              assert (Hh2: height rhs2' = S (height rhs1'2))...
+              apply balanced_eq; auto; simpl...
+           ++ assert (Hh1: S (height rhs1'1) = height lhs)...
+              assert (Hh2: height rhs2' = height rhs1'2)...
+              apply balanced_eq; auto; simpl...
+        -- destruct (lebP (height rhs1') (height rhs2'))...
+           inversion Hh.
+           assert (Hh1: height rhs2' = S (height lhs))...
+           assert (Hh2: height lhs = height rhs1')...
+           apply balanced_eq; auto; simpl...
+Qed.
 
-  intros.
-  induction t; intros; simpl; auto;
-  destruct (eqbP x n); auto; destruct (ltbP x n);
-  inversion H; inversion H0; subst; auto.
-  - destruct t1; destruct t2; unfold insert;
-    try solve_by_inverts 2; try solve [cbn; auto]; fold insert.
-    destruct (x =? n0) eqn:Heq.
-    + apply already_balanced; assumption.
-    + destruct (x <? n0) eqn:Hlt; fold insert.
-      * apply already_balanced.
-Admitted.
+Lemma insert_AVL: forall x t,
+  avl t -> avl (insert x t).
+Proof.
+  unfold avl in *; split; destruct H;
+  try apply insert_sorted;
+  try apply insert_balanced; auto.
+Qed.
 
 End AVL.

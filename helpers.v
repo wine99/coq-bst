@@ -32,3 +32,8 @@ Lemma ltbP : forall n m, reflect (n < m) (n <? m).
 Proof.
   intros n m. apply iff_reflect. rewrite Nat.ltb_lt. reflexivity.
 Qed.
+
+Lemma lebP : forall n m, reflect (n <= m) (n <=? m).
+Proof.
+  intros n m. apply iff_reflect. rewrite Nat.leb_le. reflexivity.
+Qed.
