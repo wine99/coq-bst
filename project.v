@@ -6,8 +6,8 @@ Require Import List. Import ListNotations.
 From BST Require Import helpers.
 
 Inductive tree :=
-  | leaf : tree
-  | node : nat -> tree -> tree -> tree.
+  | leaf
+  | node (n : nat) (lhs rhs : tree).
 
 Example Sorted := node 10 (node 5 (node 2 leaf leaf) (node 7 leaf leaf)) (node 16 (node 12 leaf leaf) (node 17 leaf leaf)).
 Example Unsorted := node 1 (node 2 (node 3 leaf leaf) (node 4 leaf leaf)) (node 5 leaf leaf).
