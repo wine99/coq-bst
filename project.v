@@ -419,31 +419,23 @@ Proof.
 Qed.
 
 Lemma all_less_trans : forall t n n',
-  sorted t ->
   n < n' ->
   all (fun x => x < n) t ->
   all (fun x => x < n') t.
 Proof.
   intros. remember (fun x => x < n) as p.
-  induction H1; auto. inversion H; subst.
-  constructor.
-  apply IHall1; auto.
-  apply IHall2; auto.
-  lia.
+  induction t; auto. inversion H0; subst.
+  constructor; auto; lia.
 Qed.
 
 Lemma all_greater_trans : forall t n n',
-  sorted t ->
   n' < n ->
   all (fun x => n < x) t ->
   all (fun x => n' < x) t.
 Proof.
   intros. remember (fun x => n < x) as p.
-  induction H1; auto. inversion H; subst.
-  constructor.
-  apply IHall1; auto.
-  apply IHall2; auto.
-  lia.
+  induction t; auto. inversion H0; subst.
+  constructor; auto; lia.
 Qed.
 
 Lemma simpl_delete : forall m n lhs n' rhs1 rhs2,
