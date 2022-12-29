@@ -252,18 +252,18 @@ Lemma to_list_still_contains : forall (e : nat) (t : tree),
   (elem_ofP e t) <-> In e (bst_to_list t).
 Proof with auto.
   intros e t Hsorted. split; intros.
-  - induction H; simpl.
-    + apply in_or_app. right. simpl; left; reflexivity.
+  - induction H; simpl; apply in_or_app.
+    + right. simpl; left; reflexivity.
     + inversion Hsorted; subst. apply IHelem_ofP in H4.
-      apply in_or_app. now left.
+      now left.
     + inversion Hsorted; subst. apply IHelem_ofP in H5.
-      apply in_or_app. right. now simpl; right.
+      right. now simpl; right.
   - induction t.
     + inversion H.
     + inversion Hsorted; subst.
       simpl in H. apply in_app_or in H. destruct H.
-      apply (to_list_preserve_all _ _ _ H5) in H as Hlt...
-      destruct H; subst...
+      -- apply (to_list_preserve_all _ _ _ H5) in H as Hlt...
+      -- destruct H; subst...
       apply (to_list_preserve_all _ _ _ H6) in H as Hlt...
 Qed.
 
