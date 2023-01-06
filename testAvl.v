@@ -8,6 +8,7 @@ Set Warnings "-deprecated-hint-without-locality,-implicit-core-hint-db".
     test these properties, we have to define the function versions of
     all these proerties and prove they are equal to the prosition
     versions. Therefore, the following code is not really useful. *)
+(** Jan 5 2023, the above is false! It can be done! *)
 
 From BST Require Import project.
 Require Import List. Import ListNotations.
@@ -82,6 +83,23 @@ Proof.
     try solve [left; auto];
     solve [right; intro H; inversion H; contradiction].
 Defined.
+
+Definition sortedP t := sorted t ?.
+
+QuickChick
+  (forAll
+    (genTreeSized 3 (choose(0,3)))
+    sortedP).
+
+Open Scope Checker_scope.
+
+Definition insertBST_spec :=
+  forAll (choose (0,10)) (fun x =>
+  forAll (genTreeSized 3 (choose (0,10))) (fun t =>
+  (sorted t ?) ==>
+  (sorted (insert x t) ?))).
+
+QuickChick insertBST_spec.
 
 #[local] Instance dec_balancedF : forall t, Dec (AVL.balanced t = true).
 Proof. intros. dec_eq. Defined.
