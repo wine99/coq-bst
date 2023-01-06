@@ -395,16 +395,18 @@ Qed.
 
 Lemma delete_correct : forall t x,
   sorted t ->
+  elem_ofP x t ->
   elem_ofP x (delete x t) -> False.
 Proof.
-  intros t x HSorted HBad.
+  intros t x HSorted Hin HBad.
   induction HSorted; subst; intros.
   { inversion HBad. }
-  simpl in HBad. destruct (eqbP x n).
-  - subst. destruct lhs eqn:d1; destruct rhs eqn:d2.
+  inversion Hin; subst.
+  - unfold delete in HBad. rewrite Nat.eqb_refl in HBad. fold delete in HBad.
+    destruct lhs eqn:d1; destruct rhs eqn:d2.
     + inversion HBad.
-    + apply IHHSorted2. rewrite no_deletion_if_all_less; assumption.
-    + apply IHHSorted1. rewrite no_deletion_if_all_greater; assumption.
+    + apply IHHSorted2; auto. rewrite no_deletion_if_all_less; auto.
+    + apply IHHSorted1; auto. rewrite no_deletion_if_all_greater; auto.
     + rewrite <- d1 in *. rewrite <- d2 in *. inversion HBad;
       try (
         assert (Hmax: max lhs < n);
@@ -412,10 +414,14 @@ Proof.
         lia ).
       assert (Hrhs: delete n rhs = rhs).
       { subst rhs; apply no_deletion_if_all_less; assumption. }
-      rewrite <- Hrhs in H4.
-      now apply IHHSorted2.
-  - destruct (ltbP x n);
-    (inversion HBad; subst; auto; lia).
+      rewrite Hrhs in IHHSorted2.
+      apply IHHSorted2; auto.
+  - subst. unfold delete in HBad. destruct (eqbP x n); try lia.
+    destruct (ltbP x n); try lia. fold delete in HBad.
+    inversion HBad; try lia; auto.
+  - subst. unfold delete in HBad. destruct (eqbP x n); try lia.
+    destruct (ltbP x n); try lia. fold delete in HBad.
+    inversion HBad; try lia; auto.
 Qed.
 
 Lemma all_less_trans : forall t n n',
@@ -643,28 +649,12 @@ Ltac use_helper_lemmas :=
   end;
   try constructor; auto.
 
-Ltac invert_insert H x n :=
-  unfold insert in H;
-  destruct (eqbP x n) as [Htac | Htac]; try lia; clear Htac;
-  destruct (ltbP x n) as [Htac | Htac]; try lia; clear Htac;
-  fold insert in H.
-
 Lemma insert_sorted : forall x t,
   sorted t ->
   sorted (insert x t).
 Proof.
   intros. induction H; simpl; auto.
-  invert_and_construct.
-  destruct lhs; destruct rhs; unfold insert; simpl; auto;
-  invert_and_construct; repeat use_helper_lemmas.
-  3: {
-    assert (Hlt: n < x); try lia.
-    repeat use_helper_lemmas. }
-  all:
-    destruct (eqbP x n0); auto; fold insert;
-    destruct (ltbP x n0);
-    [ | assert (Hlt: n0 < x) by lia ];
-    solve [ invert_insert IHsorted1 x n0; repeat use_helper_lemmas ].
+  invert_and_construct; repeat use_helper_lemmas; lia.
 Qed.
 
 Lemma SS_lt_S : forall x,
@@ -751,132 +741,65 @@ Lemma insert_height : forall x t,
   balanced t ->
   height (insert x t) = height t \/
   height (insert x t) = S (height t).
-Proof.
+Proof with try lia.
   intros. induction H; auto; unfold insert.
   - destruct (eqbP x n); fold insert; auto.
     destruct (ltbP x n).
     + destruct (insert_exists x lhs) as [n0 [lhs1 [lhs2 Hex]]].
       rewrite Hex in *.
       unfold balance.
-      destruct (ltbP (S (height rhs)) (height (node n0 lhs1 lhs2))).
-      * destruct (lebP (height lhs2) (height lhs1)).
-        -- right. simpl. lia.
-        -- assert (height lhs2 > height lhs1) by lia.
-           destruct lhs2; try solve_by_invert.
-           right. simpl. lia.
-      * destruct (ltbP (S (height (node n0 lhs1 lhs2))) (height rhs)).
-        -- destruct rhs; try solve_by_invert.
-           destruct (lebP (height rhs1) (height rhs2)).
-           ++ right. simpl. lia.
-           ++ assert (height rhs1 > height rhs2) by lia.
-              destruct rhs1; try solve_by_invert.
-              right. simpl. lia.
-        -- destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
+      destruct (ltbP (S (height rhs)) (height (node n0 lhs1 lhs2)))...
+      destruct (ltbP (S (height (node n0 lhs1 lhs2))) (height rhs))...
+      destruct IHbalanced1;
+      unfold height in *...
     + destruct (insert_exists x rhs) as [n0 [rhs1 [rhs2 Hex]]].
       rewrite Hex in *.
       unfold balance.
-      destruct (ltbP (S (height (node n0 rhs1 rhs2))) (height lhs)).
-      * destruct lhs; try solve_by_invert.
-        destruct (lebP (height lhs2) (height lhs1)).
-        -- right. simpl. lia.
-        -- assert (height lhs2 > height lhs1) by lia.
-           destruct lhs2; try solve_by_invert.
-           right. simpl. lia.
-      * destruct (ltbP (S (height lhs)) (height (node n0 rhs1 rhs2))).
-        -- destruct (lebP (height rhs1) (height rhs2)).
-           ++ right. simpl. lia.
-           ++ assert (height rhs1 > height rhs2) by lia.
-              destruct rhs1; try solve_by_invert.
-              right. simpl. lia.
-        -- destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
+      destruct (ltbP (S (height (node n0 rhs1 rhs2))) (height lhs))...
+      destruct (ltbP (S (height lhs)) (height (node n0 rhs1 rhs2)))...
+      destruct IHbalanced2;
+      unfold height in *...
   - destruct (eqbP x n); fold insert; auto.
     destruct (ltbP x n).
     + destruct (insert_exists x lhs) as [n0 [lhs1 [lhs2 Hex]]].
       rewrite Hex in *.
       unfold balance.
       destruct (ltbP (S (height rhs)) (height (node n0 lhs1 lhs2))).
-      * destruct (lebP (height lhs2) (height lhs1)).
-        -- destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
-        -- assert (height lhs2 > height lhs1) by lia.
+      * destruct IHbalanced1...
+        destruct (lebP (height lhs2) (height lhs1)).
+        -- unfold height in *...
+        -- assert (height lhs2 > height lhs1)...
            destruct lhs2; try solve_by_invert.
-           destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
-      * destruct (ltbP (S (height (node n0 lhs1 lhs2))) (height rhs)).
-        -- destruct rhs; try solve_by_invert.
-           destruct (lebP (height rhs1) (height rhs2)).
-           ++ right. simpl. lia.
-           ++ assert (height rhs1 > height rhs2) by lia.
-              destruct rhs1; try solve_by_invert.
-              right. simpl. lia.
-        -- destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
+           left; unfold height in *...
+      * destruct (ltbP (S (height (node n0 lhs1 lhs2))) (height rhs))...
+        destruct IHbalanced1...
+        left; unfold height in *...
     + destruct (insert_exists x rhs) as [n0 [rhs1 [rhs2 Hex]]].
       rewrite Hex in *.
       unfold balance.
-      destruct (ltbP (S (height (node n0 rhs1 rhs2))) (height lhs)).
-      * destruct lhs; try solve_by_invert.
-        destruct (lebP (height lhs2) (height lhs1)).
-        -- destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
-        -- assert (height lhs2 > height lhs1) by lia.
-           destruct lhs2; try solve_by_invert.
-           destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
-      * destruct (ltbP (S (height lhs)) (height (node n0 rhs1 rhs2))).
-        -- destruct (lebP (height rhs1) (height rhs2)).
-           ++ right. simpl. lia.
-           ++ assert (height rhs1 > height rhs2) by lia.
-              destruct rhs1; try solve_by_invert.
-              right. simpl. lia.
-        -- destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
+      destruct (ltbP (S (height (node n0 rhs1 rhs2))) (height lhs))...
+      destruct (ltbP (S (height lhs)) (height (node n0 rhs1 rhs2)))...
+      left; unfold height in *...
   - destruct (eqbP x n); fold insert; auto.
     destruct (ltbP x n).
-    + unfold balance.
-      destruct (insert_exists x lhs) as [n0 [lhs1 [lhs2 Hex]]].
+    + destruct (insert_exists x lhs) as [n0 [lhs1 [lhs2 Hex]]].
       rewrite Hex in *.
-      destruct (ltbP (S (height rhs)) (height (node n0 lhs1 lhs2))).
-      * destruct (lebP (height lhs2) (height lhs1)).
-        -- destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
-        -- assert (height lhs2 > height lhs1) by lia.
-           destruct lhs2; try solve_by_invert.
-           destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
-      * destruct (ltbP (S (height (node n0 lhs1 lhs2))) (height rhs)).
-        -- destruct rhs; try solve_by_invert.
-           destruct (lebP (height rhs1) (height rhs2)).
-           ++ right. simpl. lia.
-           ++ assert (height rhs1 > height rhs2) by lia.
-              destruct rhs1; try solve_by_invert.
-              right. simpl. lia.
-        -- destruct IHbalanced1;
-           unfold height in * ; fold height in *; lia.
-    + unfold balance.
-      destruct (insert_exists x rhs) as [n0 [rhs1 [rhs2 Hex]]].
+      unfold balance.
+      destruct (ltbP (S (height rhs)) (height (node n0 lhs1 lhs2)))...
+      destruct (ltbP (S (height (node n0 lhs1 lhs2))) (height rhs))...
+      left; unfold height in *...
+    + destruct (insert_exists x rhs) as [n0 [rhs1 [rhs2 Hex]]].
       rewrite Hex in *.
-      destruct (ltbP (S (height (node n0 rhs1 rhs2))) (height lhs)).
-      * destruct lhs; try solve_by_invert.
-        destruct (lebP (height lhs2) (height lhs1)).
-        -- destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
-        -- assert (height lhs2 > height lhs1) by lia.
-           destruct lhs2; try solve_by_invert.
-           destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
-      * destruct (ltbP (S (height lhs)) (height (node n0 rhs1 rhs2))).
-        -- destruct (lebP (height rhs1) (height rhs2)).
-           ++ destruct IHbalanced2;
-              unfold height in * ; fold height in *; lia.
-           ++ assert (height rhs1 > height rhs2) by lia.
-              destruct rhs1; try solve_by_invert.
-              destruct IHbalanced2;
-              unfold height in * ; fold height in *; lia.
-        -- destruct IHbalanced2;
-           unfold height in * ; fold height in *; lia.
+      unfold balance.
+      destruct (ltbP (S (height (node n0 rhs1 rhs2))) (height lhs))...
+      destruct (ltbP (S (height lhs)) (height (node n0 rhs1 rhs2))).
+      * destruct (lebP (height rhs1) (height rhs2)).
+        -- unfold height in *...
+        -- assert (height rhs1 > height rhs2)...
+           destruct rhs1; try solve_by_invert.
+           left; unfold height in *...
+      * destruct IHbalanced2...
+        left; unfold height in *...
 Qed.
 
 Lemma insert_balanced : forall x t,
@@ -901,8 +824,7 @@ Proof with try lia.
     fold insert. destruct (x <? n) eqn:Hlt.
     + destruct (insert_height x lhs H) as [Hh | Hh].
       * apply already_balanced. apply balanced_l1; try rewrite Hh; auto.
-      * destruct lhs; [ inversion H1 |].
-        destruct (insert_exists x (node n0 lhs1 lhs2)) as [n0' [lhs1' [lhs2' Ht]]].
+      * destruct (insert_exists x lhs) as [n0' [lhs1' [lhs2' Ht]]].
         rewrite Ht in *. rewrite H1 in *.
         unfold balance.
         assert (Hlt' : S (height rhs) < height (node n0' lhs1' lhs2'))...
@@ -943,8 +865,7 @@ Proof with try lia.
       [ apply balanced_r1 | apply balanced_eq ]; try rewrite Hh; auto.
     + destruct (insert_height x rhs H0) as [Hh | Hh].
       * apply already_balanced. apply balanced_r1; try rewrite Hh; auto.
-      * destruct rhs; [ inversion H1 |].
-        destruct (insert_exists x (node n0 rhs1 rhs2)) as [n0' [rhs1' [rhs2' Ht]]].
+      * destruct (insert_exists x rhs) as [n0' [rhs1' [rhs2' Ht]]].
         rewrite Ht in *. rewrite H1 in *.
         unfold balance.
         destruct (ltbP (S (height (node n0' rhs1' rhs2'))) (height lhs))...
